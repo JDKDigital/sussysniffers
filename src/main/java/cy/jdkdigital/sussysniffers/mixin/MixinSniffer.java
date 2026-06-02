@@ -3,15 +3,13 @@ package cy.jdkdigital.sussysniffers.mixin;
 import com.mojang.authlib.GameProfile;
 import cy.jdkdigital.sussysniffers.SussySniffers;
 import cy.jdkdigital.sussysniffers.common.SnifferVariant;
+import cy.jdkdigital.sussysniffers.attachment.SnifferVariantHandler;
 import net.minecraft.advancements.CriteriaTriggers;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.particles.ParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.network.syncher.EntityDataAccessor;
-import net.minecraft.network.syncher.EntityDataSerializers;
-import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.core.Direction;
@@ -28,8 +26,6 @@ import net.minecraft.world.entity.animal.sniffer.Sniffer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.item.enchantment.EnchantmentEffectComponents;
-import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.ServerLevelAccessor;
 import net.minecraft.world.level.block.Block;
@@ -44,6 +40,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Debug;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -51,15 +48,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import java.util.UUID;
 
-//@Debug(export = true)
+@Debug(export = true)
 @Mixin(value = Sniffer.class)
 public class MixinSniffer extends Mob implements VariantHolder<Holder<SnifferVariant>>, OwnableEntity, PlayerRideableJumping, Saddleable
 {
-    private static final EntityDataAccessor<Holder<SnifferVariant>> DATA_VARIANT_ID = SynchedEntityData.defineId(Sniffer.class, SussySniffers.SNIFFER_VARIANT_SERIALIZER.get());
-    private static final EntityDataAccessor<Boolean> DATA_SADDLED = SynchedEntityData.defineId(Sniffer.class, EntityDataSerializers.BOOLEAN);
-
+    @Unique
     @Nullable
-    private UUID owner;
+    private UUID sussysniffers$owner;
 
     protected MixinSniffer(EntityType<? extends Mob> entityType, Level level) {
         super(entityType, level);
@@ -87,26 +82,17 @@ public class MixinSniffer extends Mob implements VariantHolder<Holder<SnifferVar
     }
 
     @Inject(
-            at = {@At(value = "TAIL")},
-            method = {"defineSynchedData(Lnet/minecraft/network/syncher/SynchedEntityData$Builder;)V"}
-    )
-    public void defineVariantSynchedData(SynchedEntityData.Builder builder, CallbackInfo callbackInfo) {
-        builder.define(DATA_VARIANT_ID, SussySniffers.SNIFFER_VARIANT_REGISTRY.getHolderOrThrow(SnifferVariant.DEFAULT_SNIFFER.getKey()));
-        builder.define(DATA_SADDLED, false);
-    }
-
-    @Inject(
             at = {@At(value = "RETURN")},
-            method = {"Lnet/minecraft/world/entity/animal/sniffer/Sniffer;mobInteract(Lnet/minecraft/world/entity/player/Player;Lnet/minecraft/world/InteractionHand;)Lnet/minecraft/world/InteractionResult;"}
-    )
-    public InteractionResult useTameItem(Player player, InteractionHand hand, CallbackInfoReturnable<InteractionResult> callbackInfo) {
+            method = {"mobInteract(Lnet/minecraft/world/entity/player/Player;Lnet/minecraft/world/InteractionHand;)Lnet/minecraft/world/InteractionResult;"},
+            cancellable = true)
+    public void useTameItem(Player player, InteractionHand hand, CallbackInfoReturnable<InteractionResult> callbackInfo) {
         if (!callbackInfo.getReturnValue().consumesAction()) {
             // Tame attempt
             if (this.getOwnerUUID() == null && player.getItemInHand(hand).is(SussySniffers.SNIFFER_TAME_ITEMS)) {
                 player.getItemInHand(hand).consume(1, player);
                 Sniffer that = (Sniffer) (Object) this;
                 if (that.getRandom().nextInt(3) == 0 && !EventHooks.onAnimalTame(that, player)) {
-                    this.setOwnerUUID(player.getUUID());
+                    this.sussysniffers$setOwnerUUID(player.getUUID());
                     if (player instanceof ServerPlayer serverplayer) {
                         CriteriaTriggers.TAME_ANIMAL.trigger(serverplayer, that);
                     }
@@ -114,41 +100,40 @@ public class MixinSniffer extends Mob implements VariantHolder<Holder<SnifferVar
                 } else {
                     this.level().broadcastEntityEvent(that, (byte) 6);
                 }
-                return InteractionResult.sidedSuccess(this.level().isClientSide());
+                callbackInfo.setReturnValue(InteractionResult.sidedSuccess(this.level().isClientSide()));
             }
             if (this.getOwnerUUID() != null && this.getOwnerUUID().equals(player.getUUID())) {
                 if (this.isSaddled()) {
                     if (player.getItemInHand(hand).canPerformAction(ItemAbilities.SHEARS_REMOVE_ARMOR)) {
                         // Remove saddle
                         player.getItemInHand(hand).hurtAndBreak(1, player, getSlotForHand(hand));
-                        this.removeSaddle();
+                        this.sussysniffers$removeSaddle();
                         this.playSound(SoundEvents.ARMOR_UNEQUIP_WOLF);
                         this.spawnAtLocation(Items.SADDLE);
                     } else if (!this.level().isClientSide()) {
                         // Ride
                         player.startRiding(this);
                     }
-                    return InteractionResult.sidedSuccess(this.level().isClientSide());
+                    callbackInfo.setReturnValue(InteractionResult.sidedSuccess(this.level().isClientSide()));
                 }
             }
         }
-        return callbackInfo.getReturnValue();
     }
 
     @Inject(
             at = {@At(value = "RETURN")},
-            method = {"Lnet/minecraft/world/entity/animal/sniffer/Sniffer;canDig()Z"}
-    )
-    public boolean canDigWhenVehicle(CallbackInfoReturnable<Boolean> callbackInfo) {
-        return callbackInfo.getReturnValue() && this.getFirstPassenger() == null;
+            method = {"Lnet/minecraft/world/entity/animal/sniffer/Sniffer;canDig()Z"},
+            cancellable = true)
+    public void canDigWhenVehicle(CallbackInfoReturnable<Boolean> callbackInfo) {
+        callbackInfo.setReturnValue(callbackInfo.getReturnValue() && this.getFirstPassenger() == null);
     }
 
     @Override
     public void handleEntityEvent(byte id) {
         if (id == 7) {
-            this.spawnTamingParticles(true);
+            this.sussysniffers$spawnTamingParticles(true);
         } else if (id == 6) {
-            this.spawnTamingParticles(false);
+            this.sussysniffers$spawnTamingParticles(false);
         } else {
             super.handleEntityEvent(id);
         }
@@ -169,14 +154,19 @@ public class MixinSniffer extends Mob implements VariantHolder<Holder<SnifferVar
 
     @Override
     public void setVariant(Holder<SnifferVariant> variant) {
+        setVariant(variant, isSaddled());
+    }
+
+    @Unique
+    private void setVariant(Holder<SnifferVariant> variant, boolean isSaddled) {
         Sniffer that = (Sniffer) (Object) this;
-        that.getEntityData().set(DATA_VARIANT_ID, variant);
+        that.getData(SussySniffers.SNIFFER_VARIANT_HANDLER).setVariant(that, variant, isSaddled);
     }
 
     @Override
     public @NotNull Holder<SnifferVariant> getVariant() {
         Sniffer that = (Sniffer) (Object) this;
-        return that.getEntityData().get(DATA_VARIANT_ID);
+        return that.getData(SussySniffers.SNIFFER_VARIANT_HANDLER).variant();
     }
 
     @Override
@@ -193,24 +183,24 @@ public class MixinSniffer extends Mob implements VariantHolder<Holder<SnifferVar
     public void readAdditionalSaveData(CompoundTag compound) {
         super.readAdditionalSaveData(compound);
         if (compound.contains("variant")) {
-            SussySniffers.SNIFFER_VARIANT_REGISTRY.getHolder(ResourceLocation.tryParse(compound.getString("variant"))).ifPresent(this::setVariant);
+            SussySniffers.SNIFFER_VARIANT_REGISTRY.getHolder(ResourceLocation.tryParse(compound.getString("variant"))).ifPresent(d -> {
+                this.setVariant(d, compound.getBoolean("isSaddled"));
+            });
         }
         if (compound.contains("owner")) {
-            this.setOwnerUUID(compound.getUUID("owner"));
-        }
-        if (compound.getBoolean("isSaddled")) {
-            this.getEntityData().set(DATA_SADDLED, true);
+            this.sussysniffers$setOwnerUUID(compound.getUUID("owner"));
         }
     }
 
     @Nullable
     @Override
     public UUID getOwnerUUID() {
-        return this.owner;
+        return this.sussysniffers$owner;
     }
 
-    public void setOwnerUUID(@Nullable UUID uuid) {
-        this.owner = uuid;
+    @Unique
+    public void sussysniffers$setOwnerUUID(@Nullable UUID uuid) {
+        this.sussysniffers$owner = uuid;
     }
 
     @Override
@@ -247,19 +237,20 @@ public class MixinSniffer extends Mob implements VariantHolder<Holder<SnifferVar
 
     @Override
     public void equipSaddle(ItemStack itemStack, @Nullable SoundSource soundSource) {
-        this.getEntityData().set(DATA_SADDLED, true);
+        this.setVariant(this.getVariant(), true);
         if (soundSource != null) {
             this.level().playSound(null, this, SoundEvents.CAMEL_SADDLE, soundSource, 0.5F, 1.0F);
         }
     }
 
-    private void removeSaddle() {
-        this.getEntityData().set(DATA_SADDLED, false);
+    @Unique
+    private void sussysniffers$removeSaddle() {
+        this.setVariant(this.getVariant(), false);
     }
 
     @Override
     public boolean isSaddled() {
-        return this.getEntityData().get(DATA_SADDLED);
+        return this.getData(SussySniffers.SNIFFER_VARIANT_HANDLER).isSaddled();
     }
 
     @Override
@@ -281,7 +272,7 @@ public class MixinSniffer extends Mob implements VariantHolder<Holder<SnifferVar
     }
 
     @Override
-    protected Vec3 getRiddenInput(Player player, Vec3 travelVector) {
+    protected @NotNull Vec3 getRiddenInput(Player player, Vec3 travelVector) {
         float f = player.xxa * 0.5F;
         float f1 = player.zza;
         if (f1 <= 0.0F) {
@@ -304,7 +295,8 @@ public class MixinSniffer extends Mob implements VariantHolder<Holder<SnifferVar
         this.yRotO = this.yBodyRot = this.yHeadRot = this.getYRot();
     }
 
-    protected void spawnTamingParticles(boolean tamed) {
+    @Unique
+    protected void sussysniffers$spawnTamingParticles(boolean tamed) {
         ParticleOptions particleoptions = ParticleTypes.HEART;
         if (!tamed) {
             particleoptions = ParticleTypes.SMOKE;

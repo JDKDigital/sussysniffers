@@ -2,6 +2,14 @@
   "replace": false,
   "values": [
     "minecraft:suspicious_sand",
-    "minecraft:suspicious_gravel"
+    "minecraft:suspicious_gravel",
+    {
+      "id": "allthemodium:suspicious_soul_sand",
+      "required": false
+    },
+    {
+      "id": "allthemodium:suspicious_clay",
+      "required": false
+    }
   ]
 }

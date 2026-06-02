@@ -3,7 +3,7 @@ plugins {
     id 'eclipse'
     id 'idea'
     id 'maven-publish'
-    id 'net.neoforged.moddev' version '1.0.14'
+    id 'net.neoforged.moddev' version '2.0.+'
 }
 
 tasks.named('wrapper', Wrapper).configure {
@@ -22,6 +22,22 @@ repositories {
     mavenLocal()
     maven {
         url "https://www.cursemaven.com"
+    }
+    maven {
+        name = "JEI"
+        url 'https://maven.blamejared.com'
+    }
+    flatDir {
+        dir 'libs'
+    }
+    maven {
+        url = "https://raw.githubusercontent.com/Fuzss/modresources/main/maven/"
+    }
+    maven {
+        url = "https://maven.createmod.net"
+    }
+    maven {
+        url = "https://mvn.devos.one/snapshots" // Registrate
     }
 }
 
@@ -117,30 +133,16 @@ configurations {
 }
 
 dependencies {
-    implementation "curse.maven:jei-238222:5583523"
-    implementation "curse.maven:productivebees-377897:5611632"
+    compileOnly "mezz.jei:jei-${minecraft_version}-neoforge-api:${jei_version}"
+    runtimeOnly "mezz.jei:jei-${minecraft_version}-neoforge:${jei_version}"
 
-    // Example optional mod dependency with JEI
-    // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime
-    // compileOnly "mezz.jei:jei-${mc_version}-common-api:${jei_version}"
-    // compileOnly "mezz.jei:jei-${mc_version}-neoforge-api:${jei_version}"
-    // We add the full version to localRuntime, not runtimeOnly, so that we do not publish a dependency on it
-    // localRuntime "mezz.jei:jei-${mc_version}-neoforge:${jei_version}"
-
-    // Example mod dependency using a mod jar from ./libs with a flat dir repository
-    // This maps to ./libs/coolmod-${mc_version}-${coolmod_version}.jar
-    // The group id is ignored when searching -- in this case, it is "blank"
-    // implementation "blank:coolmod-${mc_version}:${coolmod_version}"
-
-    // Example mod dependency using a file as dependency
-    // implementation files("libs/coolmod-${mc_version}-${coolmod_version}.jar")
-
-    // Example project dependency using a sister or child project:
-    // implementation project(":myproject")
-
-    // For more info:
-    // http://www.gradle.org/docs/current/userguide/artifact_dependencies_tutorial.html
-    // http://www.gradle.org/docs/current/userguide/dependency_management.html
+    implementation "curse.maven:productivebees-377897:6702701"
+    implementation "curse.maven:jade-324717:6667790"
+//    implementation "curse.maven:additional-attributes-986624:6388896"
+//    implementation "curse.maven:irons-spells-n-spellbooks-855414:6932556"
+//    implementation "curse.maven:curios-309927:6529130"
+//    implementation "curse.maven:geckolib-388172:6920810"
+//    implementation "curse.maven:playeranimator-658587:6024462"
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.
@@ -159,7 +161,9 @@ tasks.withType(ProcessResources).configureEach {
             mod_license            : mod_license,
             mod_version            : mod_version,
             mod_authors            : mod_authors,
-            mod_description        : mod_description
+            mod_description        : mod_description,
+            pb_version             : pb_version,
+            jei_version            : jei_version,
     ]
     inputs.properties replaceProperties
 
